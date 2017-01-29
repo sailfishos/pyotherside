@@ -25,6 +25,8 @@
 #define PYOTHERSIDE_PLUGIN_ID "io.thp.pyotherside"
 #define PYOTHERSIDE_IMAGEPROVIDER_ID "python"
 #define PYOTHERSIDE_QPYTHON_NAME "Python"
+#define PYOTHERSIDE_QPYGLAREA_NAME "PyGLArea"
+#define PYOTHERSIDE_PYFBO_NAME "PyFBO"
 
 class Q_DECL_EXPORT PyOtherSideExtensionPlugin : public QQmlExtensionPlugin {
     Q_OBJECT

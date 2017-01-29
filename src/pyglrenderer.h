@@ -1,7 +1,7 @@
 
 /**
  * PyOtherSide: Asynchronous Python 3 Bindings for Qt 5
- * Copyright (c) 2011, 2013, 2014, Thomas Perl <m@thp.io>
+ * Copyright (c) 2014, Dennis Tomas <den.t@gmx.de>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,34 +16,34 @@
  * PERFORMANCE OF THIS SOFTWARE.
  **/
 
-#ifndef PYOTHERSIDE_QPYTHON_WORKER_H
-#define PYOTHERSIDE_QPYTHON_WORKER_H
+#ifndef PYOTHERSIDE_PYGLRENDERER_H
+#define PYOTHERSIDE_PYGLRENDERER_H
 
-#include <QObject>
-#include <QString>
+#include "Python.h"
+
 #include <QVariant>
-#include <QJSValue>
+#include <QString>
+#include <QRect>
 
-class QPython;
 
-class QPythonWorker : public QObject {
-    Q_OBJECT
+class PyGLRenderer {
 
-    public:
-        QPythonWorker(QPython *qpython);
-        ~QPythonWorker();
+public:
+    PyGLRenderer(QVariant pyRenderer);
+    ~PyGLRenderer();
 
-    public slots:
-        void process(QVariant func, QVariant args, QJSValue *callback);
-        void import(QString func, QJSValue *callback);
-        void import_names(QString func, QVariant args, QJSValue *callback);
+    void init();
+    void reshape(QRect geometry);
+    void render();
+    void cleanup();
 
-    signals:
-        void finished(QVariant result, QJSValue *callback);
-        void imported(bool result, QJSValue *callback);
-
-    private:
-        QPython *qpython;
+private:
+    PyObject *m_pyRendererObject;
+    PyObject *m_initMethod;
+    PyObject *m_reshapeMethod;
+    PyObject *m_renderMethod;
+    PyObject *m_cleanupMethod;
+    bool m_initialized;
 };
 
-#endif /* PYOTHERSIDE_QPYTHON_WORKER_H */
+#endif /* PYOTHERSIDE_PYGLRENDERER_H */

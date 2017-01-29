@@ -1,7 +1,7 @@
 
 /**
  * PyOtherSide: Asynchronous Python 3 Bindings for Qt 5
- * Copyright (c) 2011, 2013, 2014, Thomas Perl <m@thp.io>
+ * Copyright (c) 2014, Dennis Tomas <den.t@gmx.de>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,34 +16,26 @@
  * PERFORMANCE OF THIS SOFTWARE.
  **/
 
-#ifndef PYOTHERSIDE_QPYTHON_WORKER_H
-#define PYOTHERSIDE_QPYTHON_WORKER_H
+#ifndef PYFBO_H
+#define PYFBO_H
 
-#include <QObject>
-#include <QString>
+#include "pyglrenderer.h"
+
 #include <QVariant>
-#include <QJSValue>
+#include <QtQuick/QQuickFramebufferObject>
 
-class QPython;
-
-class QPythonWorker : public QObject {
+class PyFbo : public QQuickFramebufferObject
+{
     Q_OBJECT
+    Q_PROPERTY(QVariant renderer READ renderer WRITE setRenderer)
 
-    public:
-        QPythonWorker(QPython *qpython);
-        ~QPythonWorker();
+public:
+    Renderer *createRenderer() const;
 
-    public slots:
-        void process(QVariant func, QVariant args, QJSValue *callback);
-        void import(QString func, QJSValue *callback);
-        void import_names(QString func, QVariant args, QJSValue *callback);
-
-    signals:
-        void finished(QVariant result, QJSValue *callback);
-        void imported(bool result, QJSValue *callback);
-
-    private:
-        QPython *qpython;
+    QVariant renderer() const { return m_rendererRef; };
+    void setRenderer(QVariant rendererRef);
+private:
+    QVariant m_rendererRef;
 };
 
-#endif /* PYOTHERSIDE_QPYTHON_WORKER_H */
+#endif

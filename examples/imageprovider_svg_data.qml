@@ -1,7 +1,7 @@
 
 /**
  * PyOtherSide: Asynchronous Python 3 Bindings for Qt 5
- * Copyright (c) 2011, 2013, 2014, Thomas Perl <m@thp.io>
+ * Copyright (c) 2011, 2013, Thomas Perl <m@thp.io>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,34 +16,26 @@
  * PERFORMANCE OF THIS SOFTWARE.
  **/
 
-#ifndef PYOTHERSIDE_QPYTHON_WORKER_H
-#define PYOTHERSIDE_QPYTHON_WORKER_H
+import QtQuick 2.0
+import io.thp.pyotherside 1.0
 
-#include <QObject>
-#include <QString>
-#include <QVariant>
-#include <QJSValue>
+Image {
+    id: image
+    width: 300
+    height: 300
+    sourceSize.width: 300
+    sourceSize.height: 300
 
-class QPython;
+    Python {
+        Component.onCompleted: {
+            // Add the directory of this .qml file to the search path
+            addImportPath(Qt.resolvedUrl('.'));
 
-class QPythonWorker : public QObject {
-    Q_OBJECT
+            importModule('imageprovider_svg_data', function () {
+                image.source = 'image://python/python_logo.svg';
+            });
+        }
 
-    public:
-        QPythonWorker(QPython *qpython);
-        ~QPythonWorker();
-
-    public slots:
-        void process(QVariant func, QVariant args, QJSValue *callback);
-        void import(QString func, QJSValue *callback);
-        void import_names(QString func, QVariant args, QJSValue *callback);
-
-    signals:
-        void finished(QVariant result, QJSValue *callback);
-        void imported(bool result, QJSValue *callback);
-
-    private:
-        QPython *qpython;
-};
-
-#endif /* PYOTHERSIDE_QPYTHON_WORKER_H */
+        onError: console.log('Python error: ' + traceback)
+    }
+}

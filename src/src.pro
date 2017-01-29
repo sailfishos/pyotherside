@@ -8,7 +8,7 @@ PLUGIN_IMPORT_PATH = io/thp/pyotherside
 
 TEMPLATE = lib
 CONFIG += qt plugin
-QT += qml quick
+QT += qml quick svg
 
 target.path = $$[QT_INSTALL_QML]/$$PLUGIN_IMPORT_PATH
 INSTALLS += target
@@ -28,6 +28,14 @@ HEADERS += pyotherside_plugin.h
 SOURCES += qpython_imageprovider.cpp
 HEADERS += qpython_imageprovider.h
 
+# PyGLArea
+SOURCES += pyglarea.cpp pyglrenderer.cpp
+HEADERS += pyglarea.h pyglrenderer.h
+
+# PyFBO
+SOURCES += pyfbo.cpp
+HEADERS += pyfbo.h
+
 # Importer from Qt Resources
 RESOURCES += qrc_importer.qrc
 
@@ -36,6 +44,11 @@ exists (pythonlib.zip) {
     RESOURCES += pythonlib_loader.qrc
     DEFINES *= PYTHONLIB_LOADER_HAVE_PYTHONLIB_ZIP
 }
+
+!windows {
+    DEFINES *= HAVE_DLADDR
+}
+
 HEADERS += pythonlib_loader.h
 SOURCES += pythonlib_loader.cpp
 
