@@ -1,5 +1,5 @@
 TEMPLATE = subdirs
-SUBDIRS += src tests qtquicktests
+SUBDIRS += src tests
 
 tests.depends = src
 
