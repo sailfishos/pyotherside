@@ -131,6 +131,65 @@ class QPython : public QObject {
         evaluate(QString expr);
 
         /**
+         * \brief Asynchronously import objects from Python module
+         *
+         * Imports objects, given by list of names, from Python module asynchronously.
+         * The function will return immediately. If the module is successfully imported,
+         * the supplied \a callback will be called. Only then will the
+         * imported module be available:
+         *
+         * \code
+         * Python {
+         *     Component.onCompleted: {
+         *         importNames('os', ['path'], function (success) {
+         *             if (success) {
+         *                 // You can use the "path" submodule here
+         *             } else {
+         *                 console.log('Importing failed')
+         *             }
+         *         });
+         *     }
+         * }
+         * \endcode
+         *
+         * If an error occurs while trying to import, the signal error()
+         * will be emitted with detailed information about the error.
+         *
+         * \arg name The name of the Python module to import from
+         * \arg args The name of Python objects to import from the module
+         * \arg callback The JS callback to be called when the module is
+         *               successfully imported
+         **/
+        Q_INVOKABLE void
+        importNames(QString name, QVariant args, QJSValue callback);
+
+        /**
+         * \brief Synchronously import objects from Python module
+         *
+         * Imports objects, given by list of names, from Python module synchronously.
+         * This function will block until the objects are imported and available.
+         * In general, you should use importNames() instead of this function
+         * to avoid blocking the QML UI thread. Example use:
+         *
+         * \code
+         * Python {
+         *     Component.onCompleted: {
+         *         var success = importNames_sync('os', ['path']);
+         *         if (success) {
+         *             // You can use the "path" submodule here
+         *         }
+         *     }
+         * }
+         * \endcode
+         *
+         * \arg name The name of the Python module to import from
+         * \arg args The name of Python objects to import from the module
+         * \result \c true if the import was successful, \c false otherwise
+         **/
+        Q_INVOKABLE bool
+        importNames_sync(QString name, QVariant args);
+
+        /**
          * \brief Asynchronously import a Python module
          *
          * Imports a Python module by name asynchronously. The function
@@ -238,7 +297,11 @@ class QPython : public QObject {
          * \result The return value of the Python call as Qt data type
          **/
         Q_INVOKABLE QVariant
-        call_sync(QVariant func, QVariant args=QVariantList());
+        call_sync(QVariant func, QVariant boxed_args=QVariantList());
+
+        QVariant
+        call_internal(QVariant func, QVariant boxed_args=QVariantList(),
+            bool unbox=true);
 
         /**
          * \brief Get an attribute value of a Python object synchronously
@@ -302,8 +365,9 @@ class QPython : public QObject {
         void error(QString traceback);
 
         /* For internal use only */
-        void process(QVariant func, QVariant args, QJSValue *callback);
+        void process(QVariant func, QVariant unboxed_args, QJSValue *callback);
         void import(QString name, QJSValue *callback);
+        void import_names(QString name, QVariant args, QJSValue *callback);
 
     private slots:
         void receive(QVariant data);
@@ -315,6 +379,8 @@ class QPython : public QObject {
         void disconnectNotify(const QMetaMethod &signal);
 
     private:
+        QVariantList unboxArgList(QVariant &args);
+
         static QPythonPriv *priv;
 
         QPythonWorker *worker;
@@ -360,6 +426,15 @@ Q_OBJECT
 public:
     QPython14(QObject *parent=0)
         : QPython(parent, 1, 4)
+    {
+    }
+};
+
+class QPython15 : public QPython {
+Q_OBJECT
+public:
+    QPython15(QObject *parent=0)
+        : QPython(parent, 1, 5)
     {
     }
 };

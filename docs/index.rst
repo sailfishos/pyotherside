@@ -28,7 +28,7 @@ This section describes the QML API exposed by the *PyOtherSide* QML Plugin.
 Import Versions
 ---------------
 
-The current QML API version of PyOtherSide is 1.4. When new features are
+The current QML API version of PyOtherSide is 1.5. When new features are
 introduced, or behavior is changed, the API version will be bumped and
 documented here.
 
@@ -66,6 +66,16 @@ io.thp.pyotherside 1.4
 * If :func:`error` doesn't have a handler defined, error messages will be
   printed to the console as warnings
 
+io.thp.pyotherside 1.5
+``````````````````````
+
+* Added ``PyGLArea`` and ``PyFBO`` for OpenGL rendering, see
+  `OpenGL rendering in Python`_
+
+* Added :func:`importNames` and :func:`importNames_sync` to mirror
+  Python's ``from foo import bar, baz`` import mechanism
+
+
 
 QML ``Python`` Element
 ----------------------
@@ -79,7 +89,7 @@ To use the ``Python`` element in a QML file, you have to import the plugin using
 
 .. code-block:: javascript
 
-    import io.thp.pyotherside 1.4
+    import io.thp.pyotherside 1.5
 
 Signals
 ```````
@@ -142,6 +152,14 @@ path and then importing the module asynchronously:
     signal is emitted with ``traceback`` containing the exception info
     (QML API version 1.2 and newer).
 
+.. function:: importNames(string module, array object_names, function callback(success) {})
+
+    Import a list of names from a given modules, like Python's
+    ``from foo import bar, baz`` syntax -- the equivalent call
+    would be ``importNames('module', ['bar', 'baz'], ...);``
+
+.. versionadded:: 1.5.0
+
 Once modules are imported, Python function can be called on the
 imported modules using:
 
@@ -180,6 +198,10 @@ the QML UI thread:
 
     Import a Python module. Returns ``true`` on success, ``false`` otherwise.
 
+.. function:: importNames_sync(string module, array names) -> bool
+
+    Import names from a Python modules. Returns ``true`` on success, ``false`` otherwise.
+
 .. function:: call_sync(var func, var args=[]) -> var
 
     Call a Python function. Returns the return value of the Python function.
@@ -207,6 +229,51 @@ plugin and Python interpreter.
     Get the version of the Python interpreter that is currently used.
 
 .. versionadded:: 1.1.0
+
+.. versionchanged:: 1.5.0
+    Previously, :func:`pythonVersion` returned the compile-time version of
+    Python against which PyOtherSide was built. Starting with version 1.5.0,
+    the run-time version of Python is returned (e.g. PyOtherSide compiled
+    against Python 3.4.0 and running with Python 3.4.1 returned "3.4.0"
+    before, but returns "3.4.1" in PyOtherSide after and including 1.5.0).
+
+QML ``PyGLArea`` Element
+------------------------
+
+.. versionadded:: 1.5.0
+
+The PyGLArea allows rendering arbitrary OpenGL content from Python into
+the QML scene.
+
+Properties
+``````````
+
+.. function:: PyObject renderer
+
+    Python object that implements the IRenderer interface, see
+    `OpenGL rendering in Python`_ for details.
+
+.. function:: bool before
+
+    ``true`` to render before (= below) the rest of the QML scene,
+    ``false`` to render after (= above) the rest of the QML scene.
+    Default: ``true``
+
+QML ``PyFBO`` Element
+---------------------
+
+.. versionadded:: 1.5.0
+
+The PyFBO allows offscreen rendering of arbitrary OpenGL content from
+Python into the QML scene.
+
+Properties
+``````````
+
+.. function:: PyObject renderer
+
+    Python object that implements the IRenderer interface, see
+    `OpenGL rendering in Python`_ for details
 
 Python API
 ==========
@@ -328,6 +395,12 @@ The following constants have been added in PyOtherSide 1.3:
 **pyotherside.version**
     Version of PyOtherSide as string.
 
+.. versionadded:: 1.5.0
+
+The following constants have been added in PyOtherSide 1.5:
+
+**pyotherside.format_svg_data**
+    SVG image XML data
 
 
 Data Type Mapping
@@ -413,9 +486,11 @@ The image provider must return a tuple ``(data, size, format)``:
     pixel data in pixels.
 
 **format**
-    The pixel format of ``data`` (see `constants`_), or
+    The pixel format of ``data`` (see `constants`_),
     ``pyotherside.format_data`` if ``data`` contains an
-    encoded (PNG/JPEG) image instead of raw pixel data.
+    encoded (PNG/JPEG) image instead of raw pixel data
+    or ``pyotherside.format_svg_data`` if ``data`` contains 
+    SVG image XML data.
 
 In order to register the image provider with PyOtherSide for use
 as provider for ``image://python/`` URLs, the image provider function
@@ -525,6 +600,53 @@ deleted (there's no way for PyOtherSide to prevent referenced QObjects from
 being deleted, but PyOtherSide tries hard to detect the deletion of objects
 and give meaningful error messages in case the reference is accessed).
 
+OpenGL rendering in Python
+==========================
+
+.. versionadded:: 1.5.0
+
+You can render directly to a QML application's OpenGL context in your Python
+code (i.e. via PyOpenGL or vispy.gloo) by using a ``PyGLArea`` or ``PyFBO`` item.
+
+The ``IRenderer`` interface that needs to be implemented in Python and set
+as the ``renderer`` property of ``PyGLArea`` or ``PyFBO`` needs to provide
+the following functions:
+
+.. function:: IRenderer.init()
+
+    Initialize OpenGL resources required for rendering.
+    This method is optional.
+
+.. function:: IRenderer.reshape(x, y, width, height)
+
+    Called when the geometry has changed.
+
+    ``(x, y)`` is the position of the bottom left corner of the area, in
+    window coordinates, e.g. (0, 0) is the bottom left corner of the window.
+
+.. function:: IRenderer.render()
+
+    Render to the OpenGL context.
+
+    It is the renderer's responsibility to unbind any used resources to leave
+    the context in a clean state.
+
+.. function:: IRenderer.cleanup()
+
+    Free any resources allocated by :func:`IRenderer.init`.
+    This method is optional.
+
+
+See `Rendering with PyOpenGL`_ for an example implementation.
+
+Note that you might to use a recent version of PyOpenGL (>= 3.1.0) for some of
+the examples to work, earlier versions had problems. If your distribution does
+not provide new versions, you can install the most recent version of PyOpenGL
+to your ``$HOME`` using:
+
+.. code-block:: shell
+
+    pip3 install --user --upgrade PyOpenGL PyOpenGL_accelerate
 
 Cookbook
 ========
@@ -747,7 +869,7 @@ Using this function from QML is straightforward:
 .. code-block:: javascript
 
     import QtQuick 2.0
-    import io.thp.pyotherside 1.4
+    import io.thp.pyotherside 1.5
 
     Rectangle {
         color: 'black'
@@ -843,7 +965,7 @@ This module can now be imported in QML and used as ``source`` in the QML
 .. code-block:: javascript
 
     import QtQuick 2.0
-    import io.thp.pyotherside 1.4
+    import io.thp.pyotherside 1.5
 
     Image {
         id: image
@@ -863,6 +985,164 @@ This module can now be imported in QML and used as ``source`` in the QML
             onError: console.log('Python error: ' + traceback)
         }
     }
+
+Rendering with PyOpenGL
+-----------------------
+
+.. versionadded:: 1.5.0
+
+.. image:: images/pyfbo_example.png
+
+The example below shows how to do raw OpenGL rendering in PyOpenGL using
+``PyGLArea``. It has been adapted from the tutorial in the Qt documentation at
+http://qt-project.org/doc/qt-5/qtquick-scenegraph-openglunderqml-example.html.
+
+**renderer.py**
+
+.. code-block:: python
+
+    import numpy
+
+    from OpenGL.GL import *
+    from OpenGL.GL.shaders import compileShader, compileProgram
+
+    VERTEX_SHADER = """#version 130
+    attribute highp vec4 vertices;
+    varying highp vec2 coords;
+
+    void main() {
+        gl_Position = vertices;
+        coords = vertices.xy;
+    }
+    """
+
+    FRAGMENT_SHADER = """#version 130
+    uniform lowp float t;
+    varying highp vec2 coords;
+    void main() {
+        lowp float i = 1. - (pow(abs(coords.x), 4.) + pow(abs(coords.y), 4.));
+        i = smoothstep(t - 0.8, t + 0.8, i);
+        i = floor(i * 20.) / 20.;
+        gl_FragColor = vec4(coords * .5 + .5, i, i);
+    }
+    """
+
+    class Renderer(object):
+
+        def __init__(self):
+            self.t = 0.0
+            self.values = numpy.array([
+                -1.0, -1.0,
+                1.0, -1.0,
+                -1.0, 1.0,
+                1.0, 1.0
+            ], dtype=numpy.float32)
+
+        def set_t(self, t):
+            self.t = t
+
+        def init(self):
+            self.vertexbuffer = glGenBuffers(1)
+            vertex_shader = compileShader(VERTEX_SHADER, GL_VERTEX_SHADER)
+            fragment_shader = compileShader(FRAGMENT_SHADER, GL_FRAGMENT_SHADER)
+            self.program = compileProgram(vertex_shader, fragment_shader)
+            self.vertices_attr = glGetAttribLocation(self.program, b'vertices')
+            self.t_attr = glGetUniformLocation(self.program, b't')
+
+        def reshape(self, x, y, width, height):
+            glViewport(x, y, width, height)
+
+        def render(self):
+            glUseProgram(self.program)
+            try:
+                glDisable(GL_DEPTH_TEST)
+                glClearColor(0, 0, 0, 1)
+                glClear(GL_COLOR_BUFFER_BIT)
+                glEnable(GL_BLEND)
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE)
+
+                glBindBuffer(GL_ARRAY_BUFFER, self.vertexbuffer)
+                glEnableVertexAttribArray(self.vertices_attr)
+                glBufferData(GL_ARRAY_BUFFER, self.values, GL_STATIC_DRAW)
+                glVertexAttribPointer(self.vertices_attr, 2, GL_FLOAT, GL_FALSE, 0, None)
+                glUniform1f(self.t_attr, self.t)
+
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
+            finally:
+                glDisableVertexAttribArray(0)
+                glBindBuffer(GL_ARRAY_BUFFER, 0)
+                glUseProgram(0)
+
+        def cleanup(self):
+            glDeleteProgram(self.program)
+            glDeleteBuffers(1, [self.vertexbuffer])
+
+**pyglarea.qml**
+
+.. code-block:: javascript
+
+    import QtQuick 2.0
+    import io.thp.pyotherside 1.5
+
+    Item {
+        width: 320
+        height: 480
+
+        PyGLArea {
+            id: glArea
+            anchors.fill: parent
+            property var t: 0
+
+            SequentialAnimation on t {
+                NumberAnimation { to: 1; duration: 2500; easing.type: Easing.InQuad }
+                NumberAnimation { to: 0; duration: 2500; easing.type: Easing.OutQuad }
+                loops: Animation.Infinite
+                running: true
+            }
+
+            onTChanged: {
+                if (renderer) {
+                    py.call(py.getattr(renderer, 'set_t'), [t], update);
+                }
+            }
+        }
+
+        Rectangle {
+            color: Qt.rgba(1, 1, 1, 0.7)
+            radius: 10
+            border.width: 1
+            border.color: "white"
+            anchors.fill: label
+            anchors.margins: -10
+        }
+
+        Text {
+            id: label
+            color: "black"
+            wrapMode: Text.WordWrap
+            text: "The background here is a squircle rendered with raw OpenGL using a PyGLArea. This text label and its border is rendered using QML"
+            anchors.right: parent.right
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            anchors.margins: 20
+        }
+
+        Python {
+            id: py
+
+            Component.onCompleted: {
+                addImportPath(Qt.resolvedUrl('.'));
+                importModule('renderer', function () {
+                    call('renderer', [], function (renderer) {
+                        glArea.renderer = renderer;
+                    });
+                });
+            }
+
+            onError: console.log(traceback);
+        }
+    }
+
 
 Building PyOtherSide
 ====================
@@ -1042,7 +1322,7 @@ Building for Windows
 On Windows (tested versions: Windows 7), you need to download:
 
 1. Qt 5 (VS 2010) from `qt-project.org downloads`_ (tested: 5.2.1)
-2. `Visual C++ 2010 Express`_
+2. `Visual C++ 2010 Express`_ with `SP1`_
 3. Python 3 from `python.org Windows downloads`_ (tested: 3.3.4)
 
 We use VS 2010 instead of MinGW, because the MinGW version of Qt depends on
@@ -1056,6 +1336,7 @@ have been integrated recently, and are available since PyOtherSide 1.3.0.
 
 .. _qt-project.org downloads: http://qt-project.org/downloads
 .. _Visual C++ 2010 Express: http://www.visualstudio.com/en-us/downloads/download-visual-studio-vs#DownloadFamilies_4
+.. _SP1: https://www.microsoft.com/en-US/download/details.aspx?id=23691
 .. _python.org Windows downloads: http://python.org/downloads/windows/
 .. _Compiling Python on Windows: http://docs.python.org/devguide/setup.html#windows-compiling
 
@@ -1099,6 +1380,24 @@ Known Problems:
 
 ChangeLog
 =========
+
+Version 1.5.1 (2017-03-17)
+--------------------------
+
+* Fix :func:`call_sync` when used with parameters (fix by Robie Basak; issue #49)
+
+Version 1.5.0 (2016-06-14)
+--------------------------
+
+* Support for `OpenGL rendering in Python`_ using PyOpenGL >= 3.1.0
+* New QML components: ``PyGLArea``, ``PyFBO``
+* :func:`pythonVersion` now returns the runtime Python version
+* Add the library to ``PYTHONPATH`` for standard library appended as .zip (except on Windows)
+* Call ``PyDateTime_IMPORT`` as often as necessary (Fixes #46)
+* Added ``pyotherside.format_svg_data`` for using SVG data in the image provider
+* Handle converting ``QVariantHash`` to Python ``dict`` type
+* Added ``.qmltypes`` file to provide metadata information for Qt Creator
+* New functions :func:`importNames` and :func:`importNames_sync` for from-imports
 
 Version 1.4.0 (2015-02-19)
 --------------------------

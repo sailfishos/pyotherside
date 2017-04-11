@@ -62,6 +62,8 @@ QPython::QPython(QObject *parent, int api_version_major, int api_version_minor)
 
     QObject::connect(this, SIGNAL(import(QString,QJSValue *)),
                      worker, SLOT(import(QString,QJSValue *)));
+    QObject::connect(this, SIGNAL(import_names(QString, QVariant, QJSValue *)),
+                     worker, SLOT(import_names(QString, QVariant, QJSValue *)));
     QObject::connect(worker, SIGNAL(imported(bool,QJSValue *)),
                      this, SLOT(imported(bool,QJSValue *)));
 
@@ -124,6 +126,67 @@ QPython::addImportPath(QString path)
 
     PyObjectRef cwd(PyUnicode_FromString(utf8bytes.constData()), true);
     PyList_Insert(sys_path, 0, cwd.borrow());
+}
+
+void
+QPython::importNames(QString name, QVariant args, QJSValue callback)
+{
+    QJSValue *cb = 0;
+    if (!callback.isNull() && !callback.isUndefined() && callback.isCallable()) {
+        cb = new QJSValue(callback);
+    }
+    emit import_names(name, args, cb);
+}
+
+bool
+QPython::importNames_sync(QString module_name, QVariant args)
+{
+    // The plan is to "from module_name import a, b, c". And args is the list with a, b, c.
+    // The module_name can be a packaged module "x.y.z" -- "from x.y.z import a, b, c".
+    // Thus:
+    //  - import the module, given by module_name,
+    //  - get the objects from the module, given by names in args,
+    //  - put the objects into globals of priv
+
+    QByteArray utf8bytes = module_name.toUtf8();
+    const char *moduleName = utf8bytes.constData();
+
+    ENSURE_GIL_STATE;
+
+    // PyOtherSide API 1.2 behavior: "import x.y.z" -- where the module 'z' is needed
+    PyObjectRef module = PyObjectRef(PyImport_ImportModule(moduleName), true);
+
+    if (!module) {
+        emitError(QString("Cannot import module: %1 (%2)").arg(module_name).arg(priv->formatExc()));
+        return false;
+    }
+
+    // at this point the module with the target objects is in PyObjectRef module,
+    // it should be well imported in Python
+
+    // Get the names of functions/objects to import
+    QVariantList vl = args.toList();
+
+    QString obj_name;   // object name to import
+    PyObjectRef result; // the object, obtained from globals_temp
+
+    // for each object name try to get it from the module
+    //  - on success put it into priv.globals
+    //  - on failure emit the error and continue
+    for (QVariantList::const_iterator obj = vl.begin(); obj != vl.end(); ++obj)
+    {
+        obj_name = obj->toString();
+        utf8bytes = obj_name.toUtf8();
+        PyObject *res = PyObject_GetAttrString(module.borrow(), utf8bytes);
+        result = PyObjectRef(res, true);
+        if (!result) {
+            emitError(QString("Object '%1' is not found in '%2': (%3)").arg(obj_name).arg(module_name).arg(priv->formatExc()));
+            continue;
+        }
+        PyDict_SetItemString(priv->globals.borrow(), utf8bytes.constData(), result.borrow());
+    }
+
+    return true;
 }
 
 void
@@ -235,15 +298,10 @@ QPython::evaluate(QString expr)
     return convertPyObjectToQVariant(o.borrow());
 }
 
-void
-QPython::call(QVariant func, QVariant args, QJSValue callback)
+QVariantList
+QPython::unboxArgList(QVariant &args)
 {
-    QJSValue *cb = 0;
-    if (!callback.isNull() && !callback.isUndefined() && callback.isCallable()) {
-        cb = new QJSValue(callback);
-    }
-    // Unbox QJSValue from QVariant, since QJSValue::toVariant() can cause calls into
-    // QML engine and we don't want that to happen from non-GUI thread
+    // Unbox QJSValue from QVariant
     QVariantList vl = args.toList();
     for (int i = 0, c = vl.count(); i < c; ++i) {
         QVariant &v = vl[i];
@@ -252,11 +310,31 @@ QPython::call(QVariant func, QVariant args, QJSValue callback)
             v = v.value<QJSValue>().toVariant();
         }
     }
-    emit process(func, vl, cb);
+    return vl;
+}
+
+void
+QPython::call(QVariant func, QVariant boxed_args, QJSValue callback)
+{
+    QJSValue *cb = 0;
+    if (!callback.isNull() && !callback.isUndefined() && callback.isCallable()) {
+        cb = new QJSValue(callback);
+    }
+    // Unbox QJSValue from QVariant, since QJSValue::toVariant() can cause calls into
+    // QML engine and we don't want that to happen from non-GUI thread
+    QVariantList unboxed_args = unboxArgList(boxed_args);
+
+    emit process(func, unboxed_args, cb);
 }
 
 QVariant
-QPython::call_sync(QVariant func, QVariant args)
+QPython::call_sync(QVariant func, QVariant boxed_args)
+{
+    return call_internal(func, boxed_args, true);
+}
+
+QVariant
+QPython::call_internal(QVariant func, QVariant args, bool unbox)
 {
     ENSURE_GIL_STATE;
 
@@ -285,8 +363,18 @@ QPython::call_sync(QVariant func, QVariant args)
         return QVariant();
     }
 
+    // Unbox QJSValue from QVariant if requested. QPython::call may have done
+    // this already, but call_sync is also exposed directly, so it does not
+    // happen in this case otherwise
+    QVariant args_unboxed;
+    if (unbox) {
+        args_unboxed = unboxArgList(args);
+    } else {
+        args_unboxed = args;
+    }
+
     QVariant v;
-    QString errorMessage = priv->call(callable.borrow(), name, args, &v);
+    QString errorMessage = priv->call(callable.borrow(), name, args_unboxed, &v);
     if (!errorMessage.isNull()) {
         emitError(errorMessage);
     }
@@ -365,6 +453,25 @@ QPython::pluginVersion()
 QString
 QPython::pythonVersion()
 {
+    if (SINCE_API_VERSION(1, 5)) {
+        ENSURE_GIL_STATE;
+
+        PyObjectRef version_info(PySys_GetObject("version_info"));
+        if (version_info && PyTuple_Check(version_info.borrow()) &&
+                PyTuple_Size(version_info.borrow()) >= 3) {
+
+            QStringList parts;
+            for (int i=0; i<3; i++) {
+                PyObjectRef part(PyTuple_GetItem(version_info.borrow(), i));
+                parts << convertPyObjectToQVariant(part.borrow()).toString();
+            }
+            return parts.join('.');
+        }
+
+        // Fallback to the compile-time version below
+        qWarning("Could not determine runtime Python version");
+    }
+
     return QString(PY_VERSION);
 }
 

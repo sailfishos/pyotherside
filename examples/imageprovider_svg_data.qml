@@ -1,7 +1,7 @@
 
 /**
  * PyOtherSide: Asynchronous Python 3 Bindings for Qt 5
- * Copyright (c) 2011, 2013, 2014, Thomas Perl <m@thp.io>
+ * Copyright (c) 2011, 2013, Thomas Perl <m@thp.io>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,28 +16,26 @@
  * PERFORMANCE OF THIS SOFTWARE.
  **/
 
-#ifndef PYOTHERSIDE_PLUGIN_H
-#define PYOTHERSIDE_PLUGIN_H
+import QtQuick 2.0
+import io.thp.pyotherside 1.0
 
-#include <QtQml>
-#include <QQmlExtensionPlugin>
+Image {
+    id: image
+    width: 300
+    height: 300
+    sourceSize.width: 300
+    sourceSize.height: 300
 
-#define PYOTHERSIDE_PLUGIN_ID "io.thp.pyotherside"
-#define PYOTHERSIDE_IMAGEPROVIDER_ID "python"
-#define PYOTHERSIDE_QPYTHON_NAME "Python"
-#define PYOTHERSIDE_QPYGLAREA_NAME "PyGLArea"
-#define PYOTHERSIDE_PYFBO_NAME "PyFBO"
+    Python {
+        Component.onCompleted: {
+            // Add the directory of this .qml file to the search path
+            addImportPath(Qt.resolvedUrl('.'));
 
-class Q_DECL_EXPORT PyOtherSideExtensionPlugin : public QQmlExtensionPlugin {
-    Q_OBJECT
-    Q_PLUGIN_METADATA(IID PYOTHERSIDE_PLUGIN_ID)
+            importModule('imageprovider_svg_data', function () {
+                image.source = 'image://python/python_logo.svg';
+            });
+        }
 
-    public:
-        PyOtherSideExtensionPlugin();
-        ~PyOtherSideExtensionPlugin();
-
-        virtual void initializeEngine(QQmlEngine *engine, const char *uri);
-        virtual void registerTypes(const char *uri);
-};
-
-#endif /* PYOTHERSIDE_PLUGIN_H */
+        onError: console.log('Python error: ' + traceback)
+    }
+}
