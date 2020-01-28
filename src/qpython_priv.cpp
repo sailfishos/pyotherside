@@ -1,7 +1,7 @@
 
 /**
  * PyOtherSide: Asynchronous Python 3 Bindings for Qt 5
- * Copyright (c) 2011, 2013, 2014, Thomas Perl <m@thp.io>
+ * Copyright (c) 2011, 2013-2020, Thomas Perl <m@thp.io>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -390,6 +390,20 @@ pyotherside_QObjectMethod_call(PyObject *callable_object, PyObject *args, PyObje
         QMetaMethod method = metaObject->method(i);
 
         if (method.name() == ref->method()) {
+            if (method.methodType() == QMetaMethod::Signal) {
+                // Signals can't be called directly, we just return true or
+                // false depending on whether method.invoke() worked or not
+                bool result = method.invoke(o, Qt::AutoConnection,
+                        genericArguments.value(0),
+                        genericArguments.value(1), genericArguments.value(2),
+                        genericArguments.value(3), genericArguments.value(4),
+                        genericArguments.value(5), genericArguments.value(6),
+                        genericArguments.value(7), genericArguments.value(8),
+                        genericArguments.value(9));
+
+                return convertQVariantToPyObject(result);
+            }
+
             QVariant result;
             if (method.invoke(o, Qt::DirectConnection,
                     Q_RETURN_ARG(QVariant, result), genericArguments.value(0),
@@ -502,6 +516,14 @@ QPythonPriv::QPythonPriv()
 
     Py_InitializeEx(0);
     PyEval_InitThreads();
+
+    // Initialize sys.argv (https://github.com/thp/pyotherside/issues/77)
+    int argc = 1;
+    wchar_t **argv = (wchar_t **)malloc(argc * sizeof(wchar_t *));
+    argv[0] = Py_DecodeLocale("", nullptr);
+    PySys_SetArgvEx(argc, argv, 0);
+    PyMem_RawFree((void *)argv[0]);
+    free(argv);
 
     locals = PyObjectRef(PyDict_New(), true);
     assert(locals);
@@ -652,7 +674,7 @@ QPythonPriv::instance()
 QString
 QPythonPriv::importFromQRC(const char *module, const QString &filename)
 {
-    PyObjectRef sys_modules(PySys_GetObject((char *)"modules"), true);
+    PyObjectRef sys_modules(PySys_GetObject((char *)"modules"));
     if (!PyMapping_Check(sys_modules.borrow())) {
         return QString("sys.modules is not a mapping object");
     }
