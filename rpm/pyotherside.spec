@@ -14,6 +14,7 @@ BuildRequires: pkgconfig(Qt5Quick)
 BuildRequires: pkgconfig(Qt5Test)
 BuildRequires: pkgconfig(Qt5Svg)
 Requires: python3-base
+Requires: python3-sqlite
 
 %description
 A QML Plugin that provides access to a Python 3 interpreter from QML.
