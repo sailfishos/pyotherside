@@ -5,7 +5,6 @@ Release: 1
 Source: %{name}-%{version}.tar.gz
 URL: http://thp.io/2011/pyotherside/
 License: ISC
-Group: Development/Libraries
 BuildRequires: python3-devel
 BuildRequires: qt5-qmake
 BuildRequires: pkgconfig(Qt5Gui)
@@ -37,5 +36,6 @@ make INSTALL_ROOT=%{buildroot} install
 
 %files
 %defattr(-,root,root)
-%doc README LICENSE
+%license LICENSE
+%doc README
 %{_libdir}/qt5/qml/io/thp/pyotherside/*
